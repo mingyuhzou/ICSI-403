@@ -6,25 +6,28 @@
 #include <stack>
 #include <regex>
 #include <stdexcept>
+#include <algorithm>
 
 using namespace std;
 
+// Global variables and data structures
 int rows, cols;
-vector<vector<string>> table;
-map<string, vector<string>> adj; // adjacency list
-map<string, bool> visited;
-stack<string> topoStack;
-map<string, string> expressions; // cell -> original expression
-map<string, int> values;         // cell -> computed value
+vector<vector<string>> table;    // Stores the original spreadsheet
+map<string, vector<string>> adj; // Adjacency list for dependency graph
+map<string, bool> visited;       // Tracks visited nodes during DFS
+map<string, bool> onPath;        // Tracks nodes on current DFS path (for cycle detection)
+stack<string> topoStack;         // Stack to store topological order
+map<string, string> expressions; // Maps cell names to original expressions
+map<string, int> values;         // Stores computed values of cells
 
-// 获取单元格名称，例如 A1、B2
+// Convert row and column index to cell name (e.g., A1, B2)
 string getCellName(int row, int col)
 {
     char colChar = 'A' + col;
     return string(1, colChar) + to_string(row + 1);
 }
 
-// 读取 input.txt
+// Read spreadsheet data from input file
 void readInput(const string &filename)
 {
     ifstream file(filename);
@@ -36,7 +39,7 @@ void readInput(const string &filename)
     file >> rows >> cols;
     table.resize(rows, vector<string>(cols));
     string line;
-    getline(file, line); // skip rest of first line
+    getline(file, line); // Skip the rest of the first line
 
     for (int i = 0; i < rows; ++i)
     {
@@ -51,11 +54,11 @@ void readInput(const string &filename)
     }
 }
 
-// 提取表达式中的单元格依赖（如 A1、C3）
+// Extract all cell dependencies from a given expression
 vector<string> extractDependencies(const string &expr)
 {
     vector<string> deps;
-    regex cellRegex("([A-Z][1-9][0-9]*)"); // 支持 A1 到 Z99 等
+    regex cellRegex("([A-Z][1-9][0-9]*)"); // Matches A1 to Z99 etc.
     auto begin = sregex_iterator(expr.begin(), expr.end(), cellRegex);
     auto end = sregex_iterator();
     for (auto it = begin; it != end; ++it)
@@ -65,7 +68,7 @@ vector<string> extractDependencies(const string &expr)
     return deps;
 }
 
-// 构建依赖图
+// Build a directed graph based on cell dependencies
 void buildGraph()
 {
     for (const auto &[cell, expr] : expressions)
@@ -73,42 +76,67 @@ void buildGraph()
         vector<string> deps = extractDependencies(expr);
         for (const string &dep : deps)
         {
-            adj[dep].push_back(cell); // dep -> cell
+            adj[dep].push_back(cell); // dep → cell
         }
         if (adj.find(cell) == adj.end())
         {
-            adj[cell] = {}; // 确保每个 cell 都出现在图中
+            adj[cell] = {}; // Ensure all cells appear in the graph
         }
     }
 }
 
-// DFS for topological sort
-void dfs(const string &node)
+// Depth-First Search with cycle detection
+bool dfs(const string &node)
 {
     visited[node] = true;
+    onPath[node] = true;
+
     for (const string &neighbor : adj[node])
     {
         if (!visited[neighbor])
-            dfs(neighbor);
+        {
+            if (!dfs(neighbor))
+                return false;
+        }
+        else if (onPath[neighbor])
+        {
+            cerr << "Error: Circular dependency detected involving " << node << " and " << neighbor << ".\n";
+            return false;
+        }
     }
-    topoStack.push(node);
+
+    onPath[node] = false;
+    topoStack.push(node); // Add to topological sort
+    return true;
 }
 
+// Perform topological sort using DFS
 vector<string> topologicalSort()
 {
+    visited.clear();
+    onPath.clear();
+
+    // Initialize visited and onPath maps
     for (const auto &pair : adj)
     {
         visited[pair.first] = false;
+        onPath[pair.first] = false;
     }
 
+    // Visit all nodes
     for (const auto &pair : adj)
     {
         if (!visited[pair.first])
         {
-            dfs(pair.first);
+            if (!dfs(pair.first))
+            {
+                cerr << "Topological sort failed due to circular dependency.\n";
+                exit(1);
+            }
         }
     }
 
+    // Collect the result
     vector<string> order;
     while (!topoStack.empty())
     {
@@ -118,7 +146,7 @@ vector<string> topologicalSort()
     return order;
 }
 
-// 替换表达式中的单元格名为对应数值
+// Replace cell names in the expression with their actual values
 string substituteVariables(const string &expr, const map<string, int> &values)
 {
     string result = expr;
@@ -134,7 +162,7 @@ string substituteVariables(const string &expr, const map<string, int> &values)
     for (auto it = begin; it != end; ++it)
     {
         string var = it->str();
-        int val = values.at(var);
+        int val = values.at(var); // Replace with actual value
         output += expr.substr(last_pos, it->position() - last_pos);
         output += to_string(val);
         last_pos = it->position() + var.length();
@@ -143,7 +171,7 @@ string substituteVariables(const string &expr, const map<string, int> &values)
     return output;
 }
 
-// 简单整数四则运算求值器
+// Evaluate a basic arithmetic expression (support +, -, *, /)
 int evaluateSimpleExpression(const string &expr)
 {
     istringstream ss(expr);
@@ -164,15 +192,16 @@ int evaluateSimpleExpression(const string &expr)
     }
     return result;
 }
+
 int main()
 {
     string filename;
-    cout << "请输入输入文件名（例如 input.txt）：";
+    cout << "Please enter the input file name (for example, input.txt): ";
     cin >> filename;
 
-    readInput(filename);
-    buildGraph();
-    vector<string> order = topologicalSort();
+    readInput(filename);                      // Step 1: Read table
+    buildGraph();                             // Step 2: Build dependency graph
+    vector<string> order = topologicalSort(); // Step 3: Topological sort
 
     cout << "Topological Order:\n";
     for (const string &cell : order)
@@ -181,19 +210,23 @@ int main()
     }
     cout << "\n\nEvaluated Results:\n";
 
+    // Step 4: Evaluate expressions in topological order
     for (const string &cell : order)
     {
         string expr = expressions[cell];
         string substituted = expr;
 
+        // Replace cell references with values
         if (!extractDependencies(expr).empty())
         {
             substituted = substituteVariables(expr, values);
         }
 
+        // Evaluate the final expression
         int val = evaluateSimpleExpression(substituted);
         values[cell] = val;
 
+        // Display full evaluation trace
         cout << cell << " = " << expr;
         if (expr != substituted)
         {
@@ -202,6 +235,7 @@ int main()
         cout << " = " << val << endl;
     }
 
+    // Step 5: Output final values sorted by cell name
     cout << "\nFinal Values (sorted by cell name):\n";
     vector<pair<string, int>> sortedValues(values.begin(), values.end());
     sort(sortedValues.begin(), sortedValues.end());
