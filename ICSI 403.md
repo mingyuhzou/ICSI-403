@@ -841,3 +841,68 @@ Bellman-Ford可以处理**负边**，能发现**负环**，核心是对所有边
 
 
 Dijkstra可以看作是贪心
+
+
+
+# Graph Applications Pattern Recognition Automata
+
+
+
+<img src="./assets/image-20250521205656370.png" style="zoom: 50%;" />
+
+类似于编译原理中的自动机，双重圈表示接收状态，最终停留在一个**接受状态**才能算accept，提前到达但是最终去了别的位置，或者就没到达，结果是reject.
+
+
+
+定义L=L(M)为能被自动机M接收的所有字符串，称为language
+
+<img src="./assets/image-20250521205954053.png" alt="image-20250521205954053" style="zoom: 50%;" />
+
+
+
+一个自动机定义为<img src="./assets/image-20250521210126539.png" alt="image-20250521210126539" style="zoom:50%;" />
+
+- $Q$：状态的**集合**
+- Σ：输入**字母表**
+- δ：**状态转移函数**，如<img src="./assets/image-20250521210302563.png" alt="image-20250521210302563" style="zoom: 50%;" />
+- $q_0$：**初始状态**
+- F⊆Q：**接受状态集**
+
+
+
+Regular Expressions正则表达式
+
+该示例<img src="./assets/image-20250521210602465.png" alt="image-20250521210602465" style="zoom:67%;" />不是正则表达式，因为n是无法被储存的，没有FA能接收这种表达式
+
+- $\emptyset$：表示**空语言**，即什么都不接受。
+- $\lambda$：表示**空串**，长度为 0 的字符串。
+- $r_1 + r_2$：或 
+- 连接 $r_1 \cdot r_2$：表示先匹配 $r_1$，然后匹配 $r_2$
+- 闭包 $r_1^*$：表示匹配$r_1$任意多次
+
+
+
+示例如下
+
+<img src="./assets/image-20250521211138561.png" alt="image-20250521211138561" style="zoom:67%;" />
+
+<img src="./assets/image-20250521211112971.png" alt="image-20250521211112971" style="zoom:50%;" />
+
+
+
+Regular Languages有三种等价的标准表示方式：
+
++  **FAs(DFA)** – 有限自动机
++  **NFAs** – 非确定性有限自动机，一个输入可以有多个转移，甚至可以有空串转移，实际上和DFA一样，因为每个NFA可以转换为DFA
++ **Regular Expressions**（正则表达式）
+
+
+
+# KMP
+
+字符串匹配暴力的做法是O(MN)，KMP的时间复杂度是O(M+N)
+
+build得到的数组是每个前缀和后缀匹配的个数，对于第一个位置默认为0
+
+
+
